@@ -3,9 +3,9 @@ name: 'Deploy Musubi Code'
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - 'src/**' 
-      - 'package.json'
+    # paths:
+    #   - 'src/**' 
+    #   - 'package.json'
 
 jobs:
   build-and-deploy:

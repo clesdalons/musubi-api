@@ -3,8 +3,8 @@ name: 'Infrastructure Musubi'
 on:
   push:
     branches: [ "main" ]
-    # paths:
-    #   - '**.tf'
+    paths:
+      - '**.tf'
 
 permissions:
   contents: read
