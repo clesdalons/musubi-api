@@ -3,8 +3,8 @@ name: 'Infrastructure Musubi'
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - '**.tf'
+    # paths:
+    #   - '**.tf'
 
 permissions:
   contents: read
@@ -13,6 +13,11 @@ jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: terraform
+
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -28,13 +33,10 @@ jobs:
 
     - name: Terraform Init
       run: terraform init
-      working-directory: terraform
 
     - name: Terraform Plan
       run: terraform plan -input=false
-      working-directory: terraform
 
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main'
       run: terraform apply -auto-approve -input=false
-      working-directory: terraform
