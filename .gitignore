@@ -87,6 +87,10 @@ typings/
 dist
 out
 
+# Local vars
+*.tfvars
+*.tfvars.json
+
 # Azure Functions artifacts
 bin
 obj
@@ -112,3 +116,12 @@ __azurite_db*__.json
 
 # Azure Functions - TypeScript build info
 *.tsbuildinfo
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+.terraformrc
+terraform.rc
+

@@ -1,0 +1,36 @@
+name: 'Deploy Musubi Code'
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'src/**' 
+      - 'package.json'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node_version: '22'
+
+    - name: 'Install & Build'
+      run: |
+        npm install
+        npm run build --if-present
+
+    - name: 'Login via Azure CLI'
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 'Deploy to Azure Function'
+      uses: Azure/functions-action@v1
+      with:
+        app-name: 'musubi'
+        package: '.'
