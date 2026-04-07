@@ -1,56 +1,70 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { BlobServiceClient } from "@azure/storage-blob";
-import { TableClient } from "@azure/data-tables";
+import { SaveMetadata } from "../models/SaveEntity";
+import { azure } from "../config/AzureConfig";
 
+/**
+ * POST /PushSave
+ * Receives a binary .lsv file, archives it with a unique name, 
+ * and indexes metadata in Table Storage.
+ */
 export async function PushSave(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
-    context.log(`PushSave: Début de la synchronisation...`);
+    
+    context.log("PushSave: starting upload...");
 
-    const connectionString = process.env.STORAGE_CONNECTION_STRING;
-    const campaignId = request.query.get('campaignId') || "musubi-main";
-    const uploader = request.query.get('uploader') || "Anonyme";
-
-    if (!connectionString) {
-        return { status: 500, body: "Erreur: STORAGE_CONNECTION_STRING non configurée." };
-    }
+    // Parse parameters with defaults
+    const campaignId = request.query.get("campaignId") || "musubi-main";
+    const uploader = request.query.get("uploader") || "Anonyme";
+    const originalFileName = request.query.get("fileName") || "autosave.lsv";
 
     try {
-        // 1. Récupération du binaire (.lsv)
+        // 1. Retrieve uploaded save file
         const blobData = await request.arrayBuffer();
         if (blobData.byteLength === 0) {
-            return { status: 400, body: "Le fichier de sauvegarde est vide." };
+            return { status: 400, body: "Empty file" };
         }
 
-        // 2. Upload vers Blob Storage (On écrase 'latest.lsv')
-        const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-        const containerClient = blobServiceClient.getContainerClient("saves");
-        const blockBlobClient = containerClient.getBlockBlobClient(`${campaignId}/latest.lsv`);
+        const fileName = `save_${Date.now()}_${originalFileName}`;
+        const uniqueBlobName = `${campaignId}/${fileName}`;
 
-        context.log(`Upload du blob pour la campagne ${campaignId}...`);
-        await blockBlobClient.uploadData(blobData);
-
-        // 3. Mise à jour des métadonnées dans Table Storage
-        const tableClient = TableClient.fromConnectionString(connectionString, "savemetadata");
-        await tableClient.upsertEntity({
-            partitionKey: campaignId,
-            rowKey: "latest",
-            lastUploader: uploader,
-            timestamp: new Date().toISOString(),
-            fileSize: blobData.byteLength
+        // 2. Store file in Blob Storage
+        context.log("Uploading save", { 
+            campaignId, 
+            uploader, 
+            size: blobData.byteLength 
         });
 
+        const blockBlobClient = azure.clients.savesContainer
+            .getBlockBlobClient(uniqueBlobName);
+
+        await blockBlobClient.uploadData(blobData);
+
+        // 3. Register metadata in Table Storage
+        const entityToInsert: SaveMetadata = {
+            partitionKey: campaignId,
+            rowKey: (Number.MAX_SAFE_INTEGER - Date.now()).toString(),
+            campaignId,
+            fileName: originalFileName,
+            blobPath: uniqueBlobName,
+            uploader,
+            fileSize: blobData.byteLength,
+            timestamp: new Date().toISOString()
+        };
+
+        await azure.clients.metadataTable.createEntity(entityToInsert);
+      
         return { 
             status: 200, 
-            body: `Sauvegarde de ${uploader} synchronisée avec succès (${blobData.byteLength} octets).` 
+            body: `Save from ${uploader} uploaded successfully (${blobData.byteLength} bytes).` 
         };
 
     } catch (error) {
-        context.error("Erreur lors du PushSave:", error);
-        return { status: 500, body: "Erreur interne lors de la sauvegarde." };
+        context.error("An error occurred during PushSave:", error);
+        return { status: 500, body: "Internal error during save." };
     }
-};
+}
 
-app.http('PushSave', {
-    methods: ['POST'],
-    authLevel: 'anonymous',
+app.http("PushSave", {
+    methods: ["POST"],
+    authLevel: "anonymous",
     handler: PushSave
 });
