@@ -1,8 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import { StorageSharedKeyCredential, generateBlobSASQueryParameters, BlobSASPermissions } from "@azure/storage-blob";
 import { azure } from "../config/AzureConfig";
-import { SaveMetadata } from "../models/SaveEntity";
-import { PullSaveResponse } from "../models/PullSaveResponse";
+import { PullSaveResponse } from "../models/JsonDTO";
+import { FetchLatestSaveMetadata } from "../services/SaveService";
 
 /**
  * GET /PullSave
@@ -16,20 +16,9 @@ export async function PullSave(request: HttpRequest, context: InvocationContext)
 
     try {
         
-        // 1. Fetch only the single most recent entity (Top 1)
-        const entities = azure.clients.metadataTable.listEntities<SaveMetadata>({
-            queryOptions: { 
-                filter: `PartitionKey eq '${campaignId}'`,
-                select: ["fileName", "uploader", "timestamp", "fileSize", "blobPath"]
-            }
-        });
-
-        const latestSave = (await entities.next()).value;
-
-        if (!latestSave) {
-            context.warn(`No saves found for campaign: ${campaignId}`);
-            return { status: 404, body: "No save found for this campaign." };
-        }
+        // 1. Fetch latest save metadata
+        const latestSave = await FetchLatestSaveMetadata(campaignId, context);
+        if (!latestSave) return { status: 404, body: "No save found." };
 
         // 2. Generate SAS Token for secure, direct blob access
         const sharedKeyCredential = new StorageSharedKeyCredential(azure.storage.accountName, azure.storage.accountKey);
@@ -48,6 +37,7 @@ export async function PullSave(request: HttpRequest, context: InvocationContext)
             uploader: latestSave.uploader,
             timestamp: latestSave.timestamp,
             fileSize: latestSave.fileSize,
+            campaignId: latestSave.campaignId,
             downloadUrl
         }; 
 
@@ -62,6 +52,7 @@ export async function PullSave(request: HttpRequest, context: InvocationContext)
     }
 }
 
+// HTTP Function Registration
 app.http('PullSave', {
     methods: ['GET'],
     authLevel: 'anonymous',

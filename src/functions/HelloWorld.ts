@@ -8,6 +8,7 @@ export async function HelloWorld(request: HttpRequest, context: InvocationContex
     return { body: `Hello, ${name}!` };
 };
 
+// HTTP Function Registration
 app.http('HelloWorld', {
     methods: ['GET', 'POST'],
     authLevel: 'anonymous',

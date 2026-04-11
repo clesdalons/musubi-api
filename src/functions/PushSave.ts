@@ -63,6 +63,7 @@ export async function PushSave(request: HttpRequest, context: InvocationContext)
     }
 }
 
+// HTTP Function Registration
 app.http("PushSave", {
     methods: ["POST"],
     authLevel: "anonymous",
